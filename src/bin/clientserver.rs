@@ -1,6 +1,8 @@
 use axum;
+use axum::Json;
 use axum::extract::State;
 use axum::{Router, routing::get};
+use serde::{Deserialize, Serialize};
 use sqlx::Pool;
 use sqlx::postgres::Postgres;
 use std::sync::Arc;
@@ -16,10 +18,28 @@ struct AppState {
     db_pool: Pool<Postgres>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Book {
+    pub title: String,
+    pub author: String,
+    pub price: i32,
+    pub description: Option<String>,
+}
+
 async fn pool_connection() -> Pool<Postgres> {
     Pool::<Postgres>::connect("postgresql://luka@localhost:5432/MyBookStore")
         .await
         .unwrap()
+}
+
+async fn send_post_book(
+    State(pool_data): State<Arc<AppState>>,
+    Json(bookpost): Json<Book>,
+) -> String {
+    println!("{}", bookpost.title);
+
+    sqlx::query("INSERT INTO books (title, author, price, description) VALUES ($1, $2, $3, $4)")
+        .bind(&bookpost.title);
 }
 
 async fn client_request_books(State(pool_data): State<Arc<AppState>>) -> String {
@@ -36,6 +56,8 @@ async fn client_request_books(State(pool_data): State<Arc<AppState>>) -> String 
 
 fn main_client_router(state: Arc<AppState>) -> Router {
     Router::new()
+        .route("/clientpostbook", post(send_post_book))
+        .with_state(state)
         .route("/clientrequestbooks", get(client_request_books))
         .with_state(state)
 }
